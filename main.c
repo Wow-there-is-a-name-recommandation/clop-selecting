@@ -232,20 +232,19 @@ void Uart_String(unsigned char sString[])
 void PWM_Init(void)
 {
 	DDRB=0xff;
-	DDRG=0xff;
-	PORTG=0xaa;
+	DDRE=0b01101000;
+	PORTE=0b00100000;
 	
 	TCCR2 = (0<<FOC2)|(1<<WGM21)|(1<<WGM20)|(1<<COM21)|(0<<COM20)|(1<<CS22)|(0<<CS21)|(1<<CS20);
 	TIMSK = (1<<TOIE2);
 	
 	TCNT2 = 256-156;
 	
-	TCCR1A=(1<<COM1A1)|(1<<COM1B1)|(1<<WGM11);
-	TCCR1B=(1<<WGM13)|(1<<WGM12)|(1<<CS00);
+	TCCR3A=(1<<COM3A1)|(1<<COM3B1)|(1<<WGM31);	//모터가 약하니 좀더 쎈거 찾아보자
+	TCCR3B=(1<<WGM33)|(1<<WGM32)|(1<<CS30);
 
-	ICR1=799;
-	OCR1A=0;
-	OCR1B=0;
+	ICR3=799;
+	OCR3A=0;
 }
 
 ISR(TIMER2_OVF_vect){
@@ -267,7 +266,11 @@ ISR(TIMER2_OVF_vect){
 		/*******************Do sensor***************************/
 		if(adc_thermistor >29)
 		{
-			OCR1A = 600;
+			OCR3A = 700;
+		}
+		else
+		{
+			OCR3A = 0;
 		}
 		
 	}
