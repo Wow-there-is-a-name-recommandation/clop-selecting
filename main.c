@@ -9,7 +9,10 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <util/delay.h>
+#include <math.h>
 #include <compat/ina90.h>
 
 ////////////////////////////////////////////////////ADC/////////////////////////////////////////////////////////////
@@ -40,11 +43,21 @@ void write(unsigned char add,unsigned char dat); // 쓰기
 unsigned char read(char addr); // 읽기
 
 // x축 센서값 변수
-double gx = 0;
+double gy = 0;
 double ax = 0;
-double gx_temp = 0;
+double ay = 0;
+double az = 0;
+double gy_temp = 0;
 double ax_temp = 0;
+double ay_temp = 0;
+double az_temp = 0;
 unsigned char data[50];
+double dt = 0.01;
+
+double angle_accel = 0;
+double angle_gyro = 0;
+double last_angle_gyro = 0;
+double roll=0;
 
 //double getkalman(double acc, double gyro, double dt);
 
@@ -66,11 +79,13 @@ int main(void)
 	sei();
 	
 	//MPU setting
-	write(0x6B, 0x00); //센서 ON
+	write(0x6B, 0x00);	//센서 ON
 	write(0x6C, 0x00);
-	write(0x1B, 0x08); // AFS SEL=1 -> sensitivity: gyro 65.5 / accel 8192
-	write(0x1A, 0x05); // DLPF 10Hz로 설정
+	write(0x1B, 0x08);	// FS SEL=1 -> sensitivity: gyro 65.5
+	write(0x1C, 0x08);	// AFS SEL=1 -> sensitivity: accel 8192
+	write(0x1A, 0x05);	// DLPF 10Hz로 설정
 	PORTA = 0b01010101;
+	
     while (1) 
     {
 		if(1)	//box done
@@ -78,12 +93,25 @@ int main(void)
 			
 			/*
 			_delay_ms(1000);			////////////////////////IMU 받는것도 타이머로 할까
-			gx_temp = (read(0x43)<<8)|read(0x44);
+			gy_temp = (read(0x45)<<8)|read(0x46);
 			ax_temp = (read(0x3B)<<8)|read(0x3C);
-			gx = gx_temp / 65.5;
+			ay_temp = (read(0x3D)<<8)|read(0x3E);
+			az_temp = (read(0x3F)<<8)|read(0x40);
+			gy = gy_temp / 65.5;
 			ax = ax_temp / 8192;
+			ay = ay_temp / 8192;
+			az = az_temp / 8192;
 			
-			sprintf(data,"GyroX: %f, AccelX: %f\n\r",gx, ax);
+			last_angle_gyro = roll;
+			angle_accel = atan(ay/sqrt(pow(ax,2)+pow(az,2)))*180/3.141592;	//가속도 각은 잘 나오는 것 확인
+			angle_gyro = gy * dt + last_angle_gyro;							//자이로 각은 속도 문제 때문에 타이머 쪽에서 확인하는게 좋을 듯(빠른 주기 필요 예상)
+			
+			unsigned char gxt[8], axt[8];
+			
+			dtostrf(angle_gyro,5,2,gxt);
+			dtostrf(angle_accel,5,2,axt);
+			
+			sprintf(data,"%s %s %s %s\n\r", "GyroX: ",gxt, "AccelX: ", axt);
 			Uart_String(data);
 			*/
 		}
@@ -248,7 +276,7 @@ ISR(TIMER2_OVF_vect){
 
 ///////////////////////////////////////////////////////IMU/////////////////////////////////////////////////////////////////
 void I2C_Init(void){
-	//DDRD = 0b00000011;
+	
 	TWCR=(1<<TWINT)|(1<<TWEN); // TWI 활성화
 	TWSR=0x00; // Prescaler : 1, 상태 초기화
 	TWBR=12; // 00001100, Fscl = 400KHz(Fcpu/(16+2*TWBR*Prescaler) = Fscl)
