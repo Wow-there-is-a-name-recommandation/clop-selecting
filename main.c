@@ -61,6 +61,13 @@ double roll=0;
 
 //double getkalman(double acc, double gyro, double dt);
 
+//////////////////////////// Filter //////////////////////////////////////////////////////
+#define N 5			//필터 차수
+const double fir_coeffs[N] = {0.2, 0.2, 0.2, 0.2, 0.2};		//필터 계수
+
+double thermal_buffer[N] = {0,};	//이전 입력 저장
+
+double fir_filter(double input, double *buffer);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 int main(void)
@@ -247,7 +254,7 @@ void PWM_Init(void)
 	TCCR2 = (0<<FOC2)|(1<<WGM21)|(1<<WGM20)|(1<<COM21)|(0<<COM20)|(1<<CS22)|(0<<CS21)|(1<<CS20);
 	TIMSK = (1<<TOIE2);
 	
-	TCNT2 = 256-156;
+	TCNT2 = 256-131;
 	
 	TCCR3A=(1<<COM3A1)|(1<<COM3B1)|(1<<WGM31);	//모터가 약하니 좀더 쎈거 찾아보자
 	TCCR3B=(1<<WGM33)|(1<<WGM32)|(1<<CS30);
@@ -305,9 +312,10 @@ ISR(TIMER2_OVF_vect){
 	}
 	else{
 		s_cnt ++;
+		IR_cali();	//캘리용 실제 적용시 s_cnt 말고 초음파 플래그로
 	}
 	
-	TCNT2 = 255 - 156;
+	TCNT2 = 255 - 131;
 }
 
 ///////////////////////////////////////////////////////IMU/////////////////////////////////////////////////////////////////
@@ -383,6 +391,23 @@ unsigned char read(char addr) //자이로 센서 값 읽어오기
 	PORTA = ~PORTA;
 	return data;
 }
+
+////////////////////////// Filter ////////////////////////////////////////////
+double fir_filter(double input, double *buffer)
+{
+	for (int i = N - 1; i > 0; i--) {
+		buffer[i] = buffer[i - 1];
+	}
+	buffer[0] = input;
+
+	double output = 0;
+	for (int i = 0; i < N; i++) {
+		output += fir_coeffs[i] * buffer[i];
+	}
+
+	return output;
+}
+
 
 /*
 double getkalman(double acc,double gyro,double dt)
