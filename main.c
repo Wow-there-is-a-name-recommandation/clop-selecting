@@ -35,7 +35,7 @@ void Uart_String(unsigned char sString[]);
 
 ////////////////////////////////////////////////PWM/////////////////////////////////////////////////////////////
 void PWM_Init(void);
-volatile int g_cnt = 0;
+volatile int g_cnt = 0, s_cnt = 0;
 
 ////////////////////////////////////////////////////////////I2C&IMU/////////////////////////////////////////////////
 void I2C_Init(void);
@@ -43,11 +43,11 @@ void write(unsigned char add,unsigned char dat); // 쓰기
 unsigned char read(char addr); // 읽기
 
 // x축 센서값 변수
-double gy = 0;
+double gx = 0;
 double ax = 0;
 double ay = 0;
 double az = 0;
-double gy_temp = 0;
+double gx_temp = 0;
 double ax_temp = 0;
 double ay_temp = 0;
 double az_temp = 0;
@@ -92,19 +92,20 @@ int main(void)
 		{
 			
 			/*
-			_delay_ms(1000);			////////////////////////IMU 받는것도 타이머로 할까
-			gy_temp = (read(0x45)<<8)|read(0x46);
+			PORTA = ~PORTA;
+			////////////////////////IMU 받는것도 타이머로 할까
+			gx_temp = (read(0x43)<<8)|read(0x44);
 			ax_temp = (read(0x3B)<<8)|read(0x3C);
 			ay_temp = (read(0x3D)<<8)|read(0x3E);
 			az_temp = (read(0x3F)<<8)|read(0x40);
-			gy = gy_temp / 65.5;
+			gx = gx_temp / 65.5;
 			ax = ax_temp / 8192;
 			ay = ay_temp / 8192;
 			az = az_temp / 8192;
 			
-			last_angle_gyro = roll;
+			last_angle_gyro = angle_accel;	//자이로 각 계산용(칼만시 미사용)-자이로 각은 적분 오차 있으니 엑셀 각이나 상보 각으로 보정 필요
 			angle_accel = atan(ay/sqrt(pow(ax,2)+pow(az,2)))*180/3.141592;	//가속도 각은 잘 나오는 것 확인
-			angle_gyro = gy * dt + last_angle_gyro;							//자이로 각은 속도 문제 때문에 타이머 쪽에서 확인하는게 좋을 듯(빠른 주기 필요 예상)
+			angle_gyro = gx * dt + last_angle_gyro;							//자이로 각은 속도 문제 때문에 타이머 쪽에서 확인하는게 좋을 듯(빠른 주기 필요 예상)
 			
 			unsigned char gxt[8], axt[8];
 			
@@ -114,6 +115,14 @@ int main(void)
 			sprintf(data,"%s %s %s %s\n\r", "GyroX: ",gxt, "AccelX: ", axt);
 			Uart_String(data);
 			*/
+			
+			unsigned char gxt[8], axt[8];
+			
+			dtostrf(angle_gyro,5,2,gxt);
+			dtostrf(angle_accel,5,2,axt);
+			
+			sprintf(data,"%s %s %s %s\n\r", "GyroX: ",gxt, "AccelX: ", axt);
+			Uart_String(data);
 		}
 		else	//wait box
 		{
@@ -248,32 +257,56 @@ void PWM_Init(void)
 }
 
 ISR(TIMER2_OVF_vect){
-	g_cnt ++;
 	
-	if(g_cnt == 10){
-		g_cnt = 0;
+	if (s_cnt >500)
+	{
+		g_cnt ++;
 		
-		/*************** Get Sensor ****************/
-		double adc_thermistor = get_thermister();
-		get_IR();
-		normalization(adc_data, IR_max, IR_min, IR_norm,IR_flag);
-		
-		Uart_Num(adc_thermistor);	Uart_trans(44);
-		Uart_Num(IR_norm[0]);		Uart_trans(44);
-		Uart_Num(IR_norm[1]);		
-		Uart_trans(13);
-		
-		/*******************Do sensor***************************/
-		if(adc_thermistor >29)
-		{
-			OCR3A = 700;
-		}
-		else
-		{
-			OCR3A = 0;
-		}
+		if(g_cnt == 10){
+			g_cnt = 0;
+			
+			/*************** Get Sensor ****************/
+			double adc_thermistor = get_thermister();
+			get_IR();
+			normalization(adc_data, IR_max, IR_min, IR_norm,IR_flag);
+			
+			/*
+			gx_temp = (read(0x43)<<8)|read(0x44);
+			ax_temp = (read(0x3B)<<8)|read(0x3C);
+			ay_temp = (read(0x3D)<<8)|read(0x3E);
+			az_temp = (read(0x3F)<<8)|read(0x40);
+			gx = gx_temp / 65.5;
+			ax = ax_temp / 8192;
+			ay = ay_temp / 8192;
+			az = az_temp / 8192;
+			
+			last_angle_gyro = angle_accel;
+			angle_accel = atan(ay/sqrt(pow(ax,2)+pow(az,2)))*180/3.141592;	//가속도 각은 잘 나오는 것 확인
+			angle_gyro = gx * dt + last_angle_gyro;							//자이로 각은 속도 문제 때문에 타이머 쪽에서 확인하는게 좋을 듯(빠른 주기 필요 예상)
+			//타이머에서 각도 처리 -> 필터 적용 필요
+			*/
+			
+			Uart_Num(adc_thermistor);	Uart_trans(44);
+			Uart_Num(IR_norm[0]);		Uart_trans(44);
+			Uart_Num(IR_norm[1]);
+			Uart_trans(13);
+			
+			/*******************Do sensor***************************/
+			if(adc_thermistor >29)
+			{
+				OCR3A = 700;
+			}
+			else
+			{
+				OCR3A = 0;
+			}
+			
 		
 	}
+	else{
+		s_cnt ++;
+	}
+	
 	TCNT2 = 255 - 156;
 }
 
