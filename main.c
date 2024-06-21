@@ -62,12 +62,16 @@ double roll=0;
 //double getkalman(double acc, double gyro, double dt);
 
 //////////////////////////// Filter //////////////////////////////////////////////////////
-#define N 5			//필터 차수
-const double fir_coeffs[N] = {0.2, 0.2, 0.2, 0.2, 0.2};		//필터 계수
+#define N 10			//필터 차수
+const double fir_coeffs[N] = {0.01, 0.0249, 0.0668, 0.1249, 0.1756, 0.1957, 0.1756, 0.1249, 0.0668, 0.0249, 0.01};		//필터 계수
 
 double thermal_buffer[N] = {0,};	//이전 입력 저장
+double IR1_buffer[N] = {0};
+double IR2_buffer[N] = {0};
+double IR_filt[2] = {0,};
 
 double fir_filter(double input, double *buffer);
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 int main(void)
@@ -274,8 +278,10 @@ ISR(TIMER2_OVF_vect){
 			
 			/*************** Get Sensor ****************/
 			double adc_thermistor = get_thermister();
+			double filt_thermo = fir_filter(adc_thermistor,thermal_buffer);
 			get_IR();
 			normalization(adc_data, IR_max, IR_min, IR_norm,IR_flag);
+			IR_filt[0] = fir_filter(IR_norm[0], IR1_buffer);
 			
 			/*
 			gx_temp = (read(0x43)<<8)|read(0x44);
@@ -308,7 +314,7 @@ ISR(TIMER2_OVF_vect){
 				OCR3A = 0;
 			}
 			
-		
+		}
 	}
 	else{
 		s_cnt ++;
